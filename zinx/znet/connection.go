@@ -7,6 +7,7 @@ import (
 	"net"
 	"pororo.com/zinx/ziface"
 )
+
 //就是conn, err := listenner.AcceptTCP() 那个通信的socket ,返回值是 *net.TCPConn
 type Connection struct {
 	//当前连接的socket TCP套接字
@@ -23,23 +24,25 @@ type Connection struct {
 	ExitBuffChan chan bool
 
 	//该连接的处理方法router
-	Router  ziface.IRouter
+	//Router  ziface.IRouter
+	//消息管理MsgId和对应处理方法的消息管理模块
+	MsgHandler ziface.IMsgHandle
 }
 
-
 //创建连接的方法
-func NewConntion(conn *net.TCPConn, connID uint32, router ziface.IRouter) *Connection{
+func NewConntion(conn *net.TCPConn, connID uint32, msgHandler ziface.IMsgHandle) *Connection {
 	c := &Connection{
 		Conn:     conn,
 		ConnID:   connID,
 		isClosed: false,
 		//handleAPI: callback_api,
-		Router : router,
+		MsgHandler:   msgHandler,
 		ExitBuffChan: make(chan bool, 1),
 	}
 
 	return c
 }
+
 //读
 /* 处理conn读数据的Goroutine */
 func (c *Connection) StartReader() {
@@ -47,7 +50,7 @@ func (c *Connection) StartReader() {
 	defer fmt.Println(c.RemoteAddr().String(), " conn reader exit!")
 	defer c.Stop()
 
-	for  {
+	for {
 		// 创建拆包解包的对象
 		dp := NewDataPack()
 		//读取客户端的Msg head
@@ -59,7 +62,7 @@ func (c *Connection) StartReader() {
 		}
 
 		//拆包，得到msgid 和 datalen 放在msg中
-		msg , err := dp.Unpack(headData)
+		msg, err := dp.Unpack(headData)
 		if err != nil {
 			fmt.Println("unpack error ", err)
 			c.ExitBuffChan <- true
@@ -77,19 +80,21 @@ func (c *Connection) StartReader() {
 		}
 		msg.SetData(data)
 
-
 		//得到当前客户端请求的Request数据
 		req := Request{
-			conn:c,
-			msg:msg, //将之前的buf 改成 msg
+			conn: c,
+			msg:  msg, //将之前的buf 改成 msg
 		}
 		//从路由Routers 中找到注册绑定Conn的对应Handle
-		go func (request ziface.IRequest) {
+		/*go func (request ziface.IRequest) {
 			//执行注册的路由方法
 			c.Router.PreHandle(request)
 			c.Router.Handle(request)
 			c.Router.PostHandle(request)
-		}(&req)
+		}(&req)*/
+
+		//从绑定好的消息和对应的处理方法中执行对应的Handle方法
+		go c.MsgHandler.DoMsgHandler(&req)
 	}
 
 	/*for  {
@@ -121,7 +126,7 @@ func (c *Connection) SendMsg(msgId uint32, data []byte) error {
 	msg, err := dp.Pack(NewMsgPackage(msgId, data))
 	if err != nil {
 		fmt.Println("Pack error msg id = ", msgId)
-		return  errors.New("Pack error msg ")
+		return errors.New("Pack error msg ")
 	}
 
 	//写回客户端
@@ -142,7 +147,7 @@ func (c *Connection) Start() {
 
 	for {
 		select {
-		case <- c.ExitBuffChan:
+		case <-c.ExitBuffChan:
 			//得到退出消息，不再阻塞
 			return
 		}
@@ -175,7 +180,7 @@ func (c *Connection) GetTCPConnection() *net.TCPConn {
 }
 
 //获取当前连接ID
-func (c *Connection) GetConnID() uint32{
+func (c *Connection) GetConnID() uint32 {
 	return c.ConnID
 }
 
