@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"pororo.com/zinx/ziface"
 )
+
 //  随着架构逐步的变大，参数就会越来越多，为了省去我们后续大频率修改参数的麻烦，接下来Zinx需要做一个加载配置的模块，和一个全局获取Zinx参数的对象。
 /*
 	存储一切有关Zinx框架的全局参数，供其他模块使用
@@ -23,10 +24,11 @@ type GlobalObj struct {
 	Name      string         //当前服务器名称
 	Version   string         //当前Zinx版本号
 
-	MaxPacketSize uint32 //都需数据包的最大值
-	MaxConn       int    //当前服务器主机允许的最大链接个数
+	MaxPacketSize    uint32 //都需数据包的最大值
+	MaxConn          int    //当前服务器主机允许的最大链接个数
+	WorkerPoolSize   uint32 //业务工作Worker池的数量
+	MaxWorkerTaskLen uint32 //业务工作Worker对应负责的任务队列最大任务存储数量
 }
-
 
 /*
 	提供init方法，默认加载
@@ -34,12 +36,14 @@ type GlobalObj struct {
 func init() {
 	//初始化GlobalObject变量，设置一些默认值
 	GlobalObject = &GlobalObj{
-		Name:    "ZinxServerApp",
-		Version: "V0.4",
-		TcpPort: 7777,
-		Host:    "0.0.0.0",
-		MaxConn: 12000,
-		MaxPacketSize:4096,
+		Name:             "ZinxServerApp",
+		Version:          "V0.4",
+		TcpPort:          7777,
+		Host:             "0.0.0.0",
+		MaxConn:          12000,
+		MaxPacketSize:    4096,
+		WorkerPoolSize:   10,
+		MaxWorkerTaskLen: 1024,
 	}
 
 	//从配置文件中加载一些用户配置的参数
@@ -59,4 +63,3 @@ func (g *GlobalObj) Reload() {
 		panic(err)
 	}
 }
-
